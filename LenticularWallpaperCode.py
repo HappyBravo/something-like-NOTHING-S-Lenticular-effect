@@ -8,6 +8,8 @@ import numpy as np
 import math 
 import cv2
 
+from nothing_filter import *
+
 MAX_ANGLE = 45
 
 if len(sys.argv) != 4:
@@ -73,6 +75,30 @@ def combo(imgs, out):
 
     new_im.save(out)
 
+def sine_wave_distortion_vert(image, amplitude=20, frequency=20):
+    distorted_image = Image.new("RGB", image.size)
+    pixels = distorted_image.load()
+    width, height = image.size
+
+    for y in range(height):
+        for x in range(width):
+            offset_x = int(amplitude * np.sin(2 * np.pi * frequency * y / height))
+            pixels[x, y] = image.getpixel(((x + offset_x) % width, y))
+
+    return distorted_image
+
+def sine_wave_distortion_hori(image, amplitude=20, frequency=20):
+    distorted_image = Image.new("RGB", image.size)
+    pixels = distorted_image.load()
+    width, height = image.size
+
+    for y in range(height):
+        for x in range(width):
+            offset_x = int(amplitude * np.sin(2 * np.pi * frequency * x / width))
+            pixels[x, y] = image.getpixel(((x + offset_x) % width, y))
+
+    return distorted_image
+
 def create_right_symmetry(image):
     """
     Create a right-symmetry reflection of the given image.
@@ -85,7 +111,7 @@ def create_right_symmetry(image):
     # Merge the original and flipped images
     width, height = image.size
 
-    ratioo = 1 #+1
+    ratioo = 1 +1
 
     symmetric_image = Image.new('RGB', (int(ratioo*width), height))
     symmetric_image.paste(image, (0, 0))
@@ -183,7 +209,7 @@ def apply_matte_effect(image, output_path="",
     return matte_image
 
 
-def crop(image_path, coords, saved_location, angle = 0):
+def crop(image_path, coords, saved_location, slice_w, angle = 0, flip = 1):
 
     """
     @param image_path: The path to the image to edit
@@ -191,6 +217,7 @@ def crop(image_path, coords, saved_location, angle = 0):
     @param saved_location: Path to save the cropped image
     """
     image_obj = Image.open(image_path)
+    width, height = image_obj.size
 
     # Enhance Sharpness 
     curr_sharp = ImageEnhance.Sharpness(image_obj) 
@@ -198,15 +225,22 @@ def crop(image_path, coords, saved_location, angle = 0):
     # Sharpness enhanced by a factor of 8.3 
     image_obj = curr_sharp.enhance(sharpness)
 
-    # image_obj = image_obj.filter(ImageFilter.GaussianBlur(radius=15))
+    # image_obj = image_obj.filter(ImageFilter.GaussianBlur(radius=30))
     # image_obj = image_obj.filter(ImageFilter.BoxBlur(radius=33))
   
     cropped_image = image_obj.crop(coords)
-
+    c_width, c_height = cropped_image.size
     # cropped_image = image_obj.crop(coords)
 
     # Apply symmetry effect
-    cropped_image = create_right_symmetry(cropped_image)
+    # cropped_image = create_right_symmetry(cropped_image)
+
+    cropped_image = Image.fromarray(add_gradient(np.asarray(cropped_image), 
+                                                 slice_w = slice_w, 
+                                                 img_height=c_height).astype(np.uint8))
+    # Apply sine wave distortion
+    # distorted_image = sine_wave_distortion_hori(cropped_image, amplitude=0.1*c_height*flip, frequency=1)
+    # cropped_image = distorted_image 
 
     # cropped_image = cropped_image.filter(ImageFilter.GaussianBlur(radius=25))
     cropped_image = cropped_image.filter(ImageFilter.BoxBlur(radius=5))
@@ -223,30 +257,70 @@ def crop(image_path, coords, saved_location, angle = 0):
                                        saturation_factor=1.2, 
                                        contrast_factor=1.1,
                                        alpha=0.05,
-                                       blur_radius=30,
-                                       sharpness=50)
+                                       blur_radius=33,
+                                       sharpness=20)
     
     cropped_image = cropped_image.resize((cropped_image.size[0]//2, cropped_image.size[1]))
 
     cropped_image.save(saved_location)
 
+def strips2(image, slice_amt = 8, flt_str = 0.6, gradient_enabled = 1):
+    gen = []
+
+    im = Image.open(image)
+    cache_folder = "./cache/"
+
+    fixed_image = ImageOps.exif_transpose(im)
+
+    img_height, img_width = fixed_image.height, fixed_image.width
+    converted_image = fixed_image.convert("RGB")
+
+    img_array = np.asarray(converted_image)
+
+    new_image = img_array
+
+    slice_w = img_width / slice_amt
+    s_idx = (img_width / 2) - (slice_w / 2)
+
+    for i in range(slice_amt):
+        cur_idx = s_idx + (i - (slice_amt - 1) / 2) * slice_w * (1 - flt_str)
+        cur_idx = int(cur_idx)
+        end_idx = int(cur_idx + slice_w)
+        flip = 1
+        if i >= slice_amt//2:
+            flip = -1
+
+        f_pathh = f"{cache_folder}{image.split('.')[0]+'_'+str(i)+'.png'}" 
+        crop(image, (cur_idx, 0, end_idx, img_height), f_pathh, flip=flip, slice_w = slice_w)
+        gen.append(f_pathh)
+    # gen = apply_filter(image)
+    return gen 
+
 def strips(image, pieces):
     gen = []
     im = Image.open(image)
     width, height = im.size
-    mult = width/(pieces) # width/pieces - use x and height/width to calculate sizes based on pieces width/pieces = 120
+    mult = width/pieces # width/pieces - use x and height/width to calculate sizes based on pieces width/pieces = 120
     cache_folder = "./cache/"
     for i in range(pieces):
         # x = 0+(i*mult)
         x = 0+(i*mult)
-
+        flip = 1
+        if i >= pieces//2:
+            flip = -1
         f_pathh = f"{cache_folder}{image.split('.')[0]+'_'+str(i)+'.png'}" 
-        crop(image, (x, 0, x+mult, height), f_pathh) # imagename_iteration.png
+        crop(image, (x, 0, x+mult, height), f_pathh, flip = flip, slice_w= mult) # imagename_iteration.png
         gen.append(f_pathh)
     return gen
 
-list1 = strips(image1, psz)
-list2 = strips(image2, psz)
+# list1 = strips(image1, psz)
+# list2 = strips(image2, psz)
+
+filter_str = 0.25
+list1 = strips2(image1, slice_amt=psz, flt_str=filter_str)
+list2 = strips2(image2, slice_amt=psz, flt_str=filter_str)
+
+
 new = []
 for i in range(len(list1)):
     new.append(list1[i])
