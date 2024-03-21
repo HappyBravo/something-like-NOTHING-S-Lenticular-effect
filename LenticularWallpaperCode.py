@@ -225,6 +225,10 @@ def crop(image_path, coords, saved_location, slice_w, angle = 0, flip = 1):
     # Sharpness enhanced by a factor of 8.3 
     image_obj = curr_sharp.enhance(sharpness)
 
+    
+    # # # 
+    # < --- CHANGE THIS OPTION TO GET DIFFERENT EFFECT --- >
+    # # # 
     # image_obj = image_obj.filter(ImageFilter.GaussianBlur(radius=30))
     # image_obj = image_obj.filter(ImageFilter.BoxBlur(radius=33))
   
@@ -233,15 +237,23 @@ def crop(image_path, coords, saved_location, slice_w, angle = 0, flip = 1):
     # cropped_image = image_obj.crop(coords)
 
     # Apply symmetry effect
-    # cropped_image = create_right_symmetry(cropped_image)
+    cropped_image = create_right_symmetry(cropped_image)
 
     cropped_image = Image.fromarray(add_gradient(np.asarray(cropped_image), 
                                                  slice_w = slice_w, 
                                                  img_height=c_height).astype(np.uint8))
+    
+    # # # 
+    # < --- CHANGE THIS OPTION TO GET DIFFERENT EFFECT --- >
+    # # # 
     # Apply sine wave distortion
-    # distorted_image = sine_wave_distortion_hori(cropped_image, amplitude=0.1*c_height*flip, frequency=1)
-    # cropped_image = distorted_image 
-
+    distorted_image = sine_wave_distortion_hori(cropped_image, amplitude=0.005*c_height*flip, frequency=1)
+    cropped_image = distorted_image 
+    
+    
+    # # # 
+    # < --- CHANGE THIS OPTION TO GET DIFFERENT EFFECT --- >
+    # # #  
     # cropped_image = cropped_image.filter(ImageFilter.GaussianBlur(radius=25))
     cropped_image = cropped_image.filter(ImageFilter.BoxBlur(radius=5))
 
@@ -249,9 +261,10 @@ def crop(image_path, coords, saved_location, slice_w, angle = 0, flip = 1):
     # cropped_image = add_vignette(cropped_image)
 
     # cropped_image.save(saved_location)
-
     
-
+    # # # 
+    # < --- CHANGE THIS OPTION TO GET DIFFERENT EFFECT --- >
+    # # # 
     cropped_image = apply_matte_effect(cropped_image,
                                        brightness_factor=1.1, 
                                        saturation_factor=1.2, 
